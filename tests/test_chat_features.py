@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app import create_app
 from extensions import db
-from models import User, Category, LibraryMaterial, LibraryPurchase, Course, Enrollment, ChatMessage, MutedUser, ChatRoom
+from models import User, Category, LibraryMaterial, LibraryPurchase, Course, Enrollment, ChatMessage, MutedUser, ChatRoom, ChatRoomMember
 
 class TestConfig:
     TESTING = True
@@ -47,26 +47,54 @@ class ChatFeaturesTests(unittest.TestCase):
     def login(self, email, password):
         return self.client.post('/login', data={'email': email, 'password': password}, follow_redirects=True)
 
-    def test_room_creation_and_access(self):
-        # 1. Test general room is created
-        self.login('stud@test.com', 'pw')
-        response = self.client.get('/chat')
-        self.assertEqual(response.status_code, 200)
-        general_room = ChatRoom.query.filter_by(room_type='general').first()
-        self.assertIsNotNone(general_room)
-        self.assertIn(b'General', response.data)
+    def test_room_access_and_unread_counter(self):
+        # 1. Setup: Admin creates a public room, instructor creates a course room
+        self.login('admin@test.com', 'pw')
+        self.client.post('/admin/chat/create', data={'name': 'Public Room', 'description': 'A room for everyone', 'room_type': 'public'})
+        public_room = ChatRoom.query.filter_by(name='Public Room').first()
+        self.assertIsNotNone(public_room)
 
-        # 2. Test course room is created with course
         self.login('inst@test.com', 'pw')
-        response = self.client.post('/instructor/course/create', data={
-            'title': 'My Test Course',
-            'description': 'Desc',
-            'category_id': self.category.id,
-            'price_naira': 100
-        }, follow_redirects=True)
+        self.client.post('/instructor/course/create', data={'title': 'My Test Course', 'description': 'Desc', 'category_id': self.category.id, 'price_naira': 0}, follow_redirects=True)
         course = Course.query.filter_by(title='My Test Course').first()
-        self.assertIsNotNone(course.chat_room)
-        self.assertEqual(course.chat_room.name, 'My Test Course')
+        # Approve the course so student can enroll
+        self.login('admin@test.com', 'pw')
+        self.client.post(f'/admin/course/{course.id}/approve', follow_redirects=True)
+
+        course_room = course.chat_room
+        self.assertIsNotNone(course_room)
+
+        # 2. Test Student Access: Should see public room but not course room yet
+        self.login('stud@test.com', 'pw')
+        response = self.client.get('/chat/rooms')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Public Room', response.data)
+        self.assertNotIn(b'My Test Course', response.data)
+
+        # 3. Enroll student and test access again
+        self.client.get(f'/course/{course.id}/enroll', follow_redirects=True)
+        response = self.client.get('/chat/rooms')
+        self.assertIn(b'My Test Course', response.data)
+
+        # 4. Test Unread Counter
+        # Instructor sends a message in the course room
+        self.login('inst@test.com', 'pw')
+        db.session.add(ChatMessage(room_id=course_room.id, user_id=self.instructor.id, content='Hello Student!'))
+        db.session.commit()
+
+        # Student logs in and checks the room list, should see 1 unread message
+        self.login('stud@test.com', 'pw')
+        response = self.client.get('/chat/rooms')
+        # Check for the unread badge with the correct title
+        self.assertIn(b'title="1 unread messages"', response.data)
+
+        # 5. Student enters the room, which should reset the counter
+        response = self.client.get(f'/chat/room/{course_room.id}')
+        self.assertEqual(response.status_code, 200)
+
+        # 6. Student goes back to the room list, counter should be gone
+        response = self.client.get('/chat/rooms')
+        self.assertNotIn(b'unread-badge', response.data)
 
     def test_profanity_filter(self):
         from utils import filter_profanity

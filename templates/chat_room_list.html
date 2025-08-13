@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Chat Rooms{% endblock %}
+
+{% block styles %}
+    {{ super() }}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat_theme.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="chat-header">
+    <div class="brand-bar">
+        NOVARA
+    </div>
+    <div class="search-bar">
+        <input type="text" id="roomSearch" onkeyup="filterRooms()" placeholder="Search chat rooms...">
+    </div>
+</div>
+
+<ul class="room-list">
+    {% for item in rooms_with_unread %}
+    <li class="room-card" data-name="{{ item.room.name.lower() }}">
+        <a href="{{ url_for('main.chat_room', room_id=item.room.id) }}">
+            <div class="room-info">
+                <h3>{{ item.room.name }}</h3>
+                <p>{{ item.room.description or 'No description available.' }}</p>
+            </div>
+        </a>
+        <div class="room-meta">
+            <span class="member-count">{{ item.member_count }} members</span>
+            {% if item.unread_count > 0 %}
+                <span class="unread-badge" title="{{ item.unread_count }} unread messages">
+                    {{ item.unread_count }}
+                </span>
+            {% endif %}
+        </div>
+    </li>
+    {% else %}
+    <li>No chat rooms available.</li>
+    {% endfor %}
+</ul>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterRooms() {
+    let input, filter, ul, li, a, i, txtValue;
+    input = document.getElementById('roomSearch');
+    filter = input.value.toLowerCase();
+    ul = document.querySelector('.room-list');
+    li = ul.getElementsByTagName('li');
+
+    for (i = 0; i < li.length; i++) {
+        // Use the data-name attribute for searching
+        txtValue = li[i].getAttribute('data-name');
+        if (txtValue.indexOf(filter) > -1) {
+            li[i].style.display = "";
+        } else {
+            li[i].style.display = "none";
+        }
+    }
+}
+</script>
+{% endblock %}

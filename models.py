@@ -263,10 +263,36 @@ class LibraryPurchase(db.Model):
 class ChatRoom(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    room_type = db.Column(db.String(50), nullable=False, default='course') # 'course' or 'general'
-    course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=True, unique=True)
+    description = db.Column(db.Text, nullable=True)
+    room_type = db.Column(db.String(50), nullable=False, default='public')  # public, private, course
+    linked_course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=True, unique=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    speech_enabled = db.Column(db.Boolean, default=False)
     is_locked = db.Column(db.Boolean, nullable=False, default=False)
+
+    # Relationships
     messages = db.relationship('ChatMessage', backref='room', lazy='dynamic', cascade="all, delete-orphan")
+    creator = db.relationship('User', foreign_keys=[created_by_id])
+    members = db.relationship('ChatRoomMember', backref='room', lazy='dynamic', cascade="all, delete-orphan")
+
+    # Synonym for backward compatibility with existing course chat logic
+    course_id = synonym('linked_course_id')
+
+    def __repr__(self):
+        return f'<ChatRoom {self.name}>'
+
+class ChatRoomMember(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    chat_room_id = db.Column(db.Integer, db.ForeignKey('chat_room.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    role_in_room = db.Column(db.String(50), nullable=False, default='member')  # 'member' or 'admin'
+    last_read_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = db.relationship('User', backref=db.backref('chat_memberships', lazy='dynamic', cascade="all, delete-orphan"))
+
+    __table_args__ = (db.UniqueConstraint('chat_room_id', 'user_id', name='_user_room_membership_uc'),)
 
 class ChatMessage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -306,12 +332,6 @@ class MessageReaction(db.Model):
 
     __table_args__ = (db.UniqueConstraint('message_id', 'user_id', 'reaction', name='_message_user_reaction_uc'),)
 
-class UserLastRead(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    room_id = db.Column(db.Integer, db.ForeignKey('chat_room.id'), nullable=False)
-    last_read_timestamp = db.Column(db.DateTime, nullable=False)
-    __table_args__ = (db.UniqueConstraint('user_id', 'room_id', name='_user_room_read_uc'),)
 
 class AdminLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
