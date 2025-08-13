@@ -2,7 +2,7 @@ from flask_socketio import emit, join_room, leave_room
 from flask_login import current_user
 from extensions import db
 from datetime import datetime
-from models import ChatRoom, ChatMessage, User, Course, MutedUser, ReportedMessage, MessageReaction, UserLastRead
+from models import ChatRoom, ChatMessage, User, Course, MutedUser, ReportedMessage, MessageReaction, ChatRoomMember
 from utils import filter_profanity
 
 def register_chat_events(socketio):
@@ -20,28 +20,13 @@ def register_chat_events(socketio):
         if not room:
             return
 
-        is_authorized = False
-        if room.room_type == 'general':
-            # Admins, instructors, and students can join the general chat
-            if current_user.role in ['admin', 'instructor', 'student']:
-                is_authorized = True
-        elif room.room_type == 'course':
-            course = room.course_room
-            if course and (current_user.is_enrolled(course) or
-                           current_user.id == course.instructor_id or
-                           current_user.role == 'admin'):
-                is_authorized = True
+        # Authorization is now primarily handled by the route, but we double-check with membership.
+        membership = ChatRoomMember.query.filter_by(user_id=current_user.id, chat_room_id=room.id).first()
 
-        if is_authorized:
+        if membership:
             join_room(room_id)
-
             # Update last read timestamp
-            last_read = UserLastRead.query.filter_by(user_id=current_user.id, room_id=room_id).first()
-            if last_read:
-                last_read.last_read_timestamp = datetime.utcnow()
-            else:
-                last_read = UserLastRead(user_id=current_user.id, room_id=room_id, last_read_timestamp=datetime.utcnow())
-                db.session.add(last_read)
+            membership.last_read_at = datetime.utcnow()
             db.session.commit()
         else:
             pass
@@ -72,20 +57,10 @@ def register_chat_events(socketio):
         if not room:
             return
 
-        # Authorization check
-        is_authorized = False
-        course = room.course_room
-        if room.room_type == 'general':
-            if current_user.role in ['admin', 'instructor', 'student']:
-                is_authorized = True
-        elif room.room_type == 'course' and course:
-            if (current_user.is_enrolled(course) or
-                current_user.id == course.instructor_id or
-                current_user.role == 'admin'):
-                is_authorized = True
-
-        if not is_authorized:
-            return
+        # Authorization check based on membership
+        membership = ChatRoomMember.query.filter_by(user_id=current_user.id, chat_room_id=room.id).first()
+        if not membership:
+            return # User is not a member of the room, so cannot send messages.
 
         # Mute check
         is_muted = MutedUser.query.filter_by(user_id=current_user.id, room_id=room.id).first()

@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, abort, flash, redirect, url_for, request, current_app, jsonify
 from flask_login import login_required, current_user
 
-from models import User, Course, Category, LibraryMaterial, PlatformSetting, Enrollment, CertificateRequest, Certificate, LibraryPurchase, ChatRoom, MutedUser, ReportedMessage, AdminLog
+from models import User, Course, Category, LibraryMaterial, PlatformSetting, Enrollment, CertificateRequest, Certificate, LibraryPurchase, ChatRoom, ChatRoomMember, MutedUser, ReportedMessage, AdminLog
 from extensions import db
 from pdf_generator import generate_certificate_pdf
 
@@ -96,6 +96,44 @@ def toggle_course_chat_lock(room_id):
     db.session.commit()
     flash(f"Chat for '{room.course_room.title}' has been {status}.", 'success')
     return redirect(url_for('admin.manage_chat'))
+
+
+@admin_bp.route('/chat/create', methods=['GET', 'POST'])
+def create_chat_room():
+    if request.method == 'POST':
+        name = request.form.get('name')
+        description = request.form.get('description')
+        room_type = request.form.get('room_type', 'public')
+        speech_enabled = 'speech_enabled' in request.form
+
+        if not name:
+            flash('Room name is required.', 'danger')
+            # Rerender form with error
+            return render_template('admin/create_chat_room.html', name=name, description=description, room_type=room_type)
+
+        new_room = ChatRoom(
+            name=name,
+            description=description,
+            room_type=room_type,
+            speech_enabled=speech_enabled,
+            created_by_id=current_user.id
+        )
+        db.session.add(new_room)
+        db.session.commit()
+
+        # The creator should be a member and an admin of the room
+        new_membership = ChatRoomMember(
+            chat_room_id=new_room.id,
+            user_id=current_user.id,
+            role_in_room='admin'
+        )
+        db.session.add(new_membership)
+        db.session.commit()
+
+        flash(f'Chat room "{name}" has been created successfully.', 'success')
+        return redirect(url_for('admin.manage_chat'))
+
+    return render_template('admin/create_chat_room.html')
 
 @admin_bp.route('/users')
 def manage_users():

@@ -1,0 +1,66 @@
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - E-Learning Platform</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="/">Home</a>
+            <a href="#">Courses</a>
+
+
+                <a href="/login">Login</a>
+                <a href="/register">Register</a>
+
+        </nav>
+    </header>
+
+    <main>
+
+
+                <div class="flashes">
+                    <ul>
+
+                            <li class="message">Please log in to access this page.</li>
+
+                    </ul>
+                </div>
+
+
+
+<section id="login-form">
+    <h2>Login to Your Account</h2>
+    <form action="/login" method="post">
+        <div>
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" required="">
+        </div>
+        <div>
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required="">
+        </div>
+        <button type="submit" class="btn">Login</button>
+    </form>
+</section>
+
+    </main>
+
+    <footer>
+        <div class="footer-links">
+            <a href="#">About Us</a>
+            <a href="#">Contact</a>
+            <a href="/faq">FAQ</a>
+        </div>
+        <div class="social-media">
+            <a href="#">Facebook</a>
+            <a href="#">Twitter</a>
+            <a href="#">LinkedIn</a>
+        </div>
+        <p>© 2024 E-Learning Platform. All rights reserved.</p>
+    </footer>
+
+
+</body></html>
